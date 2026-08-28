@@ -1,0 +1,20 @@
+# Archivos del sistema y Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Carpetas temporales de Streamlit y ChromaDB
+.streamlit/
+chroma_db_storage/
+.chroma/
+
+# Datos locales grandes (opcional si la app lee directo el CSV)
+# .env si decides usar llaves en el futuro
+.env
