@@ -5,7 +5,7 @@ import seaborn as sns
 import streamlit as st
 import chromadb
 from scipy.spatial import distance
-from sentence_transformers import TransformerWordEmbeddings, SentenceTransformer
+from sentence_transformers import SentenceTransformer
 from sklearn.manifold import TSNE
 from sklearn.metrics import confusion_matrix, classification_report
 
@@ -63,7 +63,7 @@ def get_vector_db():
 db_collection, review_vectors = get_vector_db()
 
 
-# 5. CREACIÓN DE LAS PESTAÑAS INTERACTIVAS (Agregamos la pestaña de Métricas)
+# 5. CREACIÓN DE LAS PESTAÑAS INTERACTIVAS
 tab1, tab2, tab3 = st.tabs(
     ["🔍 Buscador Semántico en Vivo", "📊 Mapa Visual (t-SNE)", "📈 Métricas de Evaluación"]
 )
@@ -91,7 +91,7 @@ with tab1:
         with st.spinner("Buscando en la base de datos vectorial..."):
             query_vector = embedding_model.encode([query_usuario]).tolist()
             results = db_collection.query(query_embeddings=query_vector, n_results=3)
-            documentos_encontrados = results["documents"][0]
+            documentos_encontrados = results["documents"]
 
             st.success("¡Coincidencias encontradas!")
             for idx, doc in enumerate(documentos_encontrados, start=1):
@@ -130,7 +130,6 @@ with tab2:
             ax.grid(True, linestyle="--", alpha=0.5)
             st.pyplot(fig)
 
-# NUEVA PESTAÑA: EVALUACIÓN INDUSTRIAL DE MÉTRICAS
 with tab3:
     st.header("📈 Evaluación de Rendimiento Semántico")
     st.write("Evaluación del clasificador Zero-Shot (Frases Positivas/Negativas) contra la recomendación real del cliente.")
@@ -145,7 +144,7 @@ with tab3:
             # 2. Clasificar cada vector por distancia mínima (0 = Negativo, 1 = Positivo)
             for text_emb in review_vectors:
                 dists = [distance.cosine(text_emb, c_emb) for c_emb in clases_embeddings]
-                predicciones.append(np.argmin(dists))  # Devuelve 0 si está cerca de negativo, 1 si positivo
+                predicciones.append(np.argmin(dists))
 
             # Valores reales del dataset (0 o 1)
             valores_reales = df_reviews["Recommended IND"].astype(int).tolist()
