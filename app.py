@@ -48,28 +48,28 @@ with st.sidebar:
 def load_data(sample_size):
     df = pd.read_csv("Reviews.csv")
     df = df.dropna(subset=["Review Text", "Recommended IND"]).reset_index(drop=True)
-    # El tamaño de la muestra depende estrictamente del valor seleccionado en el Slider
     return df.sample(n=sample_size, random_state=42).reset_index(drop=True)
 
-# Pasamos el parámetro dinámico a la función con caché
 df_reviews = load_data(tamano_muestra)
 lista_textos = df_reviews["Review Text"].tolist()
 lista_ids = [str(i) for i in df_reviews.index]
 
 
-# 5. INICIALIZAR BASE DE DATOS VECTORIAL EN MEMORIA (Vinculado al tamaño dinámico)
-@st.cache_resource
+# 5. INICIALIZAR BASE DE DATOS VECTORIAL EN MEMORIA (Dinámica y sin errores de caché)
 def get_vector_db(texts, ids, _model):
     chroma_client = chromadb.Client()
+    
+    # Nombre de colección único dinámico basado en la cantidad de elementos
+    nombre_coleccion = f"free_demo_collection_{len(texts)}"
+    
     try:
-        chroma_client.delete_collection("free_demo_collection")
+        chroma_client.delete_collection(nombre_coleccion)
     except:
         pass
 
-    collection = chroma_client.create_collection(name="free_demo_collection")
+    collection = chroma_client.create_collection(name=nombre_coleccion)
 
     with st.spinner("Inicializando base de datos vectorial con modelo Open Source..."):
-        # Generar embeddings locales para la muestra actual
         vectores_calculados = _model.encode(texts).tolist()
         collection.add(
             documents=texts,
@@ -78,7 +78,7 @@ def get_vector_db(texts, ids, _model):
         )
     return collection, vectores_calculados
 
-# La base de datos y los vectores se recalculan automáticamente si cambian los textos o IDs
+# Se ejecuta fresco cada vez que cambia la muestra del Slider para evitar el NotFoundError
 db_collection, review_vectors = get_vector_db(lista_textos, lista_ids, embedding_model)
 
 
@@ -131,7 +131,7 @@ with tab2:
                 dists = [distance.cosine(text_emb, cat_emb) for cat_emb in cat_embeddings]
                 feedback_categories.append(temas_fijos[np.argmin(dists)])
 
-            # Ajustamos dinámicamente la perplejidad para que se adapte al tamaño de la muestra seleccionada
+            # Ajustamos la perplejidad de forma segura basada en el tamaño del vector actual
             dinamic_perplexity = min(10, max(2, len(review_vectors) // 10))
             tsne = TSNE(n_components=2, perplexity=dinamic_perplexity, random_state=42, init="pca")
             tsne_results = tsne.fit_transform(np.array(review_vectors))
