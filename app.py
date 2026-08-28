@@ -32,7 +32,7 @@ embedding_model = load_free_embedding_model()
 @st.cache_data
 def load_data():
     # Lee el archivo simplificado 'reviews.csv' que subiste al repositorio
-    df = pd.read_csv("reviews.csv")
+    df = pd.read_csv("Reviews.csv")
     df = df.dropna(subset=["Review Text"]).reset_index(drop=True)
     # Tomamos una muestra de 100 filas para garantizar velocidad en la carga del mapa t-SNE
     return df.sample(n=100, random_state=42).reset_index(drop=True)
