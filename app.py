@@ -19,6 +19,8 @@ st.markdown(
 )
 
 # 2. CARGA DEL MODELO DE EMBEDDINGS GRATUITO
+
+
 @st.cache_resource
 def load_free_embedding_model():
     # Modelo ligero y veloz para correr de forma eficiente en los servidores gratuitos de Streamlit
@@ -31,7 +33,7 @@ embedding_model = load_free_embedding_model()
 # 3. CARGA Y LIMPIEZA DE DATOS
 @st.cache_data
 def load_data():
-    # Lee el archivo simplificado 'reviews.csv' que subiste al repositorio
+    # Lee el archivo 'Reviews.csv' 
     df = pd.read_csv("Reviews.csv")
     df = df.dropna(subset=["Review Text"]).reset_index(drop=True)
     # Tomamos una muestra de 100 filas para garantizar velocidad en la carga del mapa t-SNE
@@ -121,27 +123,60 @@ with tab1:
 with tab2:
     st.header("🗺️ Agrupación Semántica Automática")
     st.write(
-        "Aquí puedes ver cómo el modelo de IA agrupa las reseñas de forma visual según su contenido lingüístico."
+        "Aquí puedes ver cómo la Inteligencia Artificial identifica patrones y agrupa las reseñas automáticamente por su significado real."
     )
 
-    if st.button("Generar Mapa t-SNE"):
-        with st.spinner("Calculating t-SNE projection..."):
-            # t-SNE configurado con baja perplejidad para optimizar la muestra
-            tsne = TSNE(n_components=2, perplexity=10, random_state=42)
+    if st.button("Generar Mapa t-SNE con Categorías"):
+        with st.spinner("Procesando clústeres... (Esto tomará unos segundos)"):
+
+            # Temas fijos de clasificación
+            temas_fijos = ["Quality", "Fit", "Style", "Comfort"]
+
+            # Obtener embeddings de las categorías fijas
+            cat_embeddings = embedding_model.encode(temas_fijos).tolist()
+
+            # Clasificar dinámicamente cada reseña de la muestra para asignarle un color
+            feedback_categories = []
+            for text_emb in review_vectors:
+                dists = [
+                    distance.cosine(text_emb, cat_emb)
+                    for cat_emb in cat_embeddings
+                ]
+                feedback_categories.append(temas_fijos[np.argmin(dists)])
+
+            # Configurar y entrenar el modelo t-SNE de forma estable con inicialización de PCA
+            tsne = TSNE(
+                n_components=2, perplexity=10, random_state=42, init="pca"
+            )
             tsne_results = tsne.fit_transform(np.array(review_vectors))
 
-            # Renderizar el gráfico nativamente en Streamlit usando Matplotlib
-            fig, ax = plt.subplots(figsize=(10, 6))
-            ax.scatter(
-                tsne_results[:, 0],
-                tsne_results[:, 1],
-                alpha=0.6,
-                c="#FF4B4B",
-                edgecolors="w",
+            # Empaquetar resultados en un DataFrame limpio para Seaborn
+            df_plot = pd.DataFrame(
+                {
+                    "t-SNE Dimensión 1": tsne_results[:, 0],
+                    "t-SNE Dimensión 2": tsne_results[:, 1],
+                    "Categoría Semántica": feedback_categories,
+                }
             )
-            ax.set_title("Estructura Geométrica de los Intereses del Cliente")
-            ax.set_xlabel("t-SNE Dimensión 1")
-            ax.set_ylabel("t-SNE Dimensión 2")
+
+            # Renderizar gráfico avanzado coloreado por categoría semántica
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.scatterplot(
+                data=df_plot,
+                x="t-SNE Dimensión 1",
+                y="t-SNE Dimensión 2",
+                hue="Categoría Semántica",  # Activa la separación de colores lógicos
+                palette="Dark2",  # Paleta profesional de alta visibilidad
+                alpha=0.8,
+                s=70,
+                ax=ax,
+            )
+
+            ax.set_title(
+                "Segmentación de Clientes: Reseñas de Ropa por Proximidad Semántica",
+                fontsize=12,
+            )
             ax.grid(True, linestyle="--", alpha=0.5)
 
+            # Desplegar la figura de forma limpia en la interfaz web
             st.pyplot(fig)
