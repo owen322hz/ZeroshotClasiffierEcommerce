@@ -4,7 +4,7 @@
 
 La aplicación está construida completamente con tecnologías de código abierto (*Open-Source*), lo que significa que corre de forma local y **gratuita** sin depender de APIs de pago como OpenAI.
 
-🚀 **[PROBAR LA APP EN VIVO AQUÍ](AQUÍ_PEGAS_TU_ENLACE_DE_STREAMLIT_CUANDO_LO_TENGAS)**
+🚀 **[PROBAR LA APP EN VIVO AQUÍ](https://zeroshotclasiffierecommerce-lwsdeh8v9czwjwgfy4s3re.streamlit.app)**
 
 ---
 
