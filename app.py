@@ -11,7 +11,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 # 1. CONFIGURACIÓN DE LA PÁGINA WEB
 st.set_page_config(
-    page_title="AI E-Commerce Explorer (Pro)", page_icon="🛍️", layout="wide"
+    page_title="AI E-Commerce Explorer (Max)", page_icon="🛍️", layout="wide"
 )
 
 st.title("🛍️ Buscador Semántico Gratuito y Segmentación de Reseñas")
@@ -26,23 +26,40 @@ def load_free_embedding_model():
 
 embedding_model = load_free_embedding_model()
 
+# 3. CONTROL DINÁMICO (SLIDER) EN LA BARRA LATERAL
+with st.sidebar:
+    st.header("🎛️ Panel de Control")
+    st.write("Ajusta el tamaño de la muestra para evaluar el comportamiento de la IA a diferentes escalas.")
+    
+    # Slider dinámico: Mínimo 50, Máximo 500, Valor por defecto 150, Pasos de 50 en 50
+    tamano_muestra = st.slider(
+        "Cantidad de reseñas a procesar:",
+        min_value=50,
+        max_value=500,
+        value=150,
+        step=50,
+        help="Un tamaño mayor incrementa la precisión estadística pero requiere más cómputo."
+    )
+    
+    st.info(f"Procesando actualmente: {tamano_muestra} reseñas.")
 
-# 3. CARGA Y LIMPIEZA DE DATOS
+# 4. CARGA Y LIMPIEZA DE DATOS (Ajustado dinámicamente por el Slider)
 @st.cache_data
-def load_data():
+def load_data(sample_size):
     df = pd.read_csv("Reviews.csv")
     df = df.dropna(subset=["Review Text", "Recommended IND"]).reset_index(drop=True)
-    # Tomamos una muestra de 100 filas para garantizar velocidad en las tres pestañas
-    return df.sample(n=100, random_state=42).reset_index(drop=True)
+    # El tamaño de la muestra depende estrictamente del valor seleccionado en el Slider
+    return df.sample(n=sample_size, random_state=42).reset_index(drop=True)
 
-df_reviews = load_data()
+# Pasamos el parámetro dinámico a la función con caché
+df_reviews = load_data(tamano_muestra)
 lista_textos = df_reviews["Review Text"].tolist()
 lista_ids = [str(i) for i in df_reviews.index]
 
 
-# 4. INICIALIZAR BASE DE DATOS VECTORIAL EN MEMORIA
+# 5. INICIALIZAR BASE DE DATOS VECTORIAL EN MEMORIA (Vinculado al tamaño dinámico)
 @st.cache_resource
-def get_vector_db():
+def get_vector_db(texts, ids, _model):
     chroma_client = chromadb.Client()
     try:
         chroma_client.delete_collection("free_demo_collection")
@@ -52,25 +69,27 @@ def get_vector_db():
     collection = chroma_client.create_collection(name="free_demo_collection")
 
     with st.spinner("Inicializando base de datos vectorial con modelo Open Source..."):
-        vectores_calculados = embedding_model.encode(lista_textos).tolist()
+        # Generar embeddings locales para la muestra actual
+        vectores_calculados = _model.encode(texts).tolist()
         collection.add(
-            documents=lista_textos,
+            documents=texts,
             embeddings=vectores_calculados,
-            ids=lista_ids,
+            ids=ids,
         )
     return collection, vectores_calculados
 
-db_collection, review_vectors = get_vector_db()
+# La base de datos y los vectores se recalculan automáticamente si cambian los textos o IDs
+db_collection, review_vectors = get_vector_db(lista_textos, lista_ids, embedding_model)
 
 
-# 5. CREACIÓN DE LAS PESTAÑAS INTERACTIVAS
+# 6. CREACIÓN DE LAS PESTAÑAS INTERACTIVAS
 tab1, tab2, tab3 = st.tabs(
     ["🔍 Buscador Semántico en Vivo", "📊 Mapa Visual (t-SNE)", "📈 Métricas de Evaluación"]
 )
 
 with tab1:
     st.header("🤖 Motor de Búsqueda de Soporte")
-    st.write("Escribe un concepto o problema y el sistema encontrará los casos históricos más similares.")
+    st.write("Escribe un concepto o problema y el sistema encontrará los casos históricos más similares dentro del volumen seleccionado.")
 
     sugerencia = st.selectbox(
         "Ideas para buscar:",
@@ -100,7 +119,7 @@ with tab1:
 
 with tab2:
     st.header("🗺️ Agrupación Semántica Automática")
-    st.write("Visualización geométrica de los intereses y opiniones de los clientes.")
+    st.write(f"Visualización geométrica interactiva de las {tamano_muestra} opiniones de los clientes.")
 
     if st.button("Generar Mapa t-SNE con Categorías"):
         with st.spinner("Procesando clústeres..."):
@@ -112,7 +131,9 @@ with tab2:
                 dists = [distance.cosine(text_emb, cat_emb) for cat_emb in cat_embeddings]
                 feedback_categories.append(temas_fijos[np.argmin(dists)])
 
-            tsne = TSNE(n_components=2, perplexity=10, random_state=42, init="pca")
+            # Ajustamos dinámicamente la perplejidad para que se adapte al tamaño de la muestra seleccionada
+            dinamic_perplexity = min(10, max(2, len(review_vectors) // 10))
+            tsne = TSNE(n_components=2, perplexity=dinamic_perplexity, random_state=42, init="pca")
             tsne_results = tsne.fit_transform(np.array(review_vectors))
 
             df_plot = pd.DataFrame({
@@ -132,30 +153,24 @@ with tab2:
 
 with tab3:
     st.header("📈 Evaluación de Rendimiento Semántico")
-    st.write("Evaluación del clasificador Zero-Shot (Frases Positivas/Negativas) contra la recomendación real del cliente.")
+    st.write(f"Evaluación estadística del clasificador Zero-Shot sobre la muestra actual de {tamano_muestra} elementos.")
 
     if st.button("Calcular Métricas de Calidad"):
         with st.spinner("Ejecutando pruebas estadísticas..."):
-            # 1. Definir clases de sentimiento altamente contrastantes para mitigar el sesgo espacial
             clases_sentimiento = [
-                "This clothing item is terrible, worst purchase, bad quality, completely disappointed",  # Clase 0 (Negativa)
-                "This clothing item is absolutely amazing, highly recommended, great fit, love it"       # Clase 1 (Positiva)
+                "This clothing item is terrible, worst purchase, bad quality, completely disappointed",
+                "This clothing item is absolutely amazing, highly recommended, great fit, love it"
             ]
             clases_embeddings = embedding_model.encode(clases_sentimiento).tolist()
 
             predicciones = []
-            # 2. Clasificar cada vector por distancia mínima (0 = Negativo, 1 = Positivo)
             for text_emb in review_vectors:
                 dists = [distance.cosine(text_emb, c_emb) for c_emb in clases_embeddings]
                 predicciones.append(np.argmin(dists))
 
-            # Valores reales del dataset (0 o 1)
             valores_reales = df_reviews["Recommended IND"].astype(int).tolist()
 
-            # 3. Calcular la Matriz de Confusión
             cm = confusion_matrix(valores_reales, predicciones)
-            
-            # 4. Diseñar reporte de métricas en columnas visuales
             report = classification_report(valores_reales, predicciones, output_dict=True)
             accuracy = report['accuracy'] * 100
             
@@ -166,7 +181,6 @@ with tab3:
 
             st.write("---")
             
-            # 5. Dibujar el Mapa de Calor de la Matriz de Confusión
             fig_cm, ax_cm = plt.subplots(figsize=(6, 4))
             sns.heatmap(
                 cm, annot=True, fmt="d", cmap="Blues", ax=ax_cm,
@@ -174,9 +188,8 @@ with tab3:
                 yticklabels=["Real: No Rec.", "Real: Sí Rec."]
             )
             ax_cm.set_title("Matriz de Confusión (Zero-Shot Sentiment vs Real)")
-            
             st.pyplot(fig_cm)
             st.markdown(
-                "💡 **Interpretación:** La matriz muestra cuántas veces el modelo geométrico "
-                "coincidió con la decisión real del cliente de recomendar o no la prenda de vestir."
+                "💡 **Interpretación:** Al modificar la muestra con el Slider, verás cómo cambian los "
+                "volúmenes absolutos dentro de los cuadrantes, evaluando la estabilidad del modelo geométrico."
             )
