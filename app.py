@@ -136,8 +136,11 @@ with tab3:
 
     if st.button("Calcular Métricas de Calidad"):
         with st.spinner("Ejecutando pruebas estadísticas..."):
-            # 1. Definir clases de sentimiento y generar sus embeddings
-            clases_sentimiento = ["This clothes review is negative", "This clothes review is positive"]
+            # 1. Definir clases de sentimiento altamente contrastantes para mitigar el sesgo espacial
+            clases_sentimiento = [
+                "This clothing item is terrible, worst purchase, bad quality, completely disappointed",  # Clase 0 (Negativa)
+                "This clothing item is absolutely amazing, highly recommended, great fit, love it"       # Clase 1 (Positiva)
+            ]
             clases_embeddings = embedding_model.encode(clases_sentimiento).tolist()
 
             predicciones = []
